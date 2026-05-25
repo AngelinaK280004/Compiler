@@ -8,29 +8,26 @@
 #include <iostream>
 using namespace std;
 
-// Типы лексем
 enum class TokenType {
-    KEYWORD,    // ключевое слово
-    IDENTIFIER, // идентификатор
-    NUMBER,     // число
-    OPERATOR,   // оператор
-    DELIMITER,  // разделитель
-    UNKNOWN,    // неизвестный
-    END         // конец файла
+    KEYWORD,     // ключевое слово
+    IDENTIFIER,  // идентификатор
+    NUMBER,      // число (целое)
+    OPERATOR,    // оператор
+    DELIMITER,   // разделитель
+    UNKNOWN,     // неизвестный
+    END          // конец файла
 };
 
-// Структура токена
 struct Token {
     TokenType type;
-    int tableIndex;     // индекс в таблице
-    int value;          // дополнительное значение
-    string lexeme;      // текст лексемы
-    int line;           // номер строки
-    int column;         // номер колонки
+    int tableIndex;
+    string lexeme;
+    int line;
+    int column;
 
-    Token() : type(TokenType::END), tableIndex(-1), value(0), line(0), column(0) {}
-    Token(TokenType t, int idx, int val, const string& lex, int l, int c)
-        : type(t), tableIndex(idx), value(val), lexeme(lex), line(l), column(c) {}
+    Token() : type(TokenType::END), tableIndex(-1), line(0), column(0) {}
+    Token(TokenType t, int idx, const string& lex, int l, int c)
+        : type(t), tableIndex(idx), lexeme(lex), line(l), column(c) {}
 };
 
 class Tokenizer {
@@ -40,6 +37,7 @@ private:
     int lineNumber;
     int columnNumber;
     int posInLine;
+    char currentChar;
 
     vector<string> keywords;
     vector<string> identifiers;
@@ -50,8 +48,6 @@ private:
     map<string, int> keywordMap;
     map<string, int> operatorMap;
     map<string, int> delimiterMap;
-
-    char currentChar;
 
     void getNextChar();
     void skipWhitespace();

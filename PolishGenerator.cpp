@@ -1,90 +1,86 @@
-#include "SemanticAnalyzer.h"
+#include "PolishGenerator.h"
 #include <iostream>
 #include <fstream>
 #include <iomanip>
 using namespace std;
 
-SemanticAnalyzer::SemanticAnalyzer(shared_ptr<ASTNode> root)
-    : ast(root), tempCounter(0), labelCounter(0), hasError(false) {
-}
+PolishGenerator::PolishGenerator(shared_ptr<ASTNode> root)
+    : ast(root), tempCounter(0), labelCounter(0), hasError(false) {}
 
-SemanticAnalyzer::~SemanticAnalyzer() {}
+PolishGenerator::~PolishGenerator() {}
 
-string SemanticAnalyzer::newTemp() {
+string PolishGenerator::newTemp() {
     return "t" + to_string(++tempCounter);
 }
 
-string SemanticAnalyzer::newLabel() {
+string PolishGenerator::newLabel() {
     return "L" + to_string(++labelCounter);
 }
 
-void SemanticAnalyzer::addQuad(const string& op, const string& arg1,
-    const string& arg2, const string& result) {
-    quadruples.push_back(Quadruple(op, arg1, arg2, result));
-}
-
-string SemanticAnalyzer::generateExpression(shared_ptr<ASTNode> node) {
+string PolishGenerator::generateExpression(shared_ptr<ASTNode> node) {
     if (!node) return "";
 
     switch (node->type) {
     case NodeType::VARIABLE:
         return node->value;
-
     case NodeType::NUMBER_LITERAL:
         return node->value;
-
     case NodeType::BINARY_OP: {
         if (node->children.size() < 2) return "";
         string left = generateExpression(node->children[0]);
         string right = generateExpression(node->children[1]);
         string temp = newTemp();
-        addQuad(node->value, left, right, temp);
+        polishCode.push_back(left);
+        polishCode.push_back(right);
+        polishCode.push_back(node->value);
+        polishCode.push_back(temp + " := " + left + " " + node->value + " " + right);
         return temp;
     }
-
     case NodeType::EXPRESSION:
         if (!node->children.empty())
             return generateExpression(node->children[0]);
         return "";
-
     default:
         return "";
     }
 }
 
-void SemanticAnalyzer::generateAssignment(shared_ptr<ASTNode> node) {
+void PolishGenerator::generateAssignment(shared_ptr<ASTNode> node) {
     if (!node || node->children.size() < 2) return;
     string var = node->children[0]->value;
     string expr = generateExpression(node->children[1]);
-    addQuad(":=", expr, "_", var);
+    polishCode.push_back(expr);
+    polishCode.push_back(var + " := " + expr);
 }
 
-void SemanticAnalyzer::generateWhileLoop(shared_ptr<ASTNode> node) {
+void PolishGenerator::generateWhileLoop(shared_ptr<ASTNode> node) {
     if (!node || node->children.size() < 2) return;
     string startLabel = newLabel();
     string endLabel = newLabel();
 
-    addQuad("label", "_", "_", startLabel);
+    polishCode.push_back(startLabel + ":");
     string cond = generateExpression(node->children[0]);
-    addQuad("if_false", cond, "_", endLabel);
+    polishCode.push_back(cond);
+    polishCode.push_back("if_false goto " + endLabel);
     generateStatement(node->children[1]);
-    addQuad("goto", "_", "_", startLabel);
-    addQuad("label", "_", "_", endLabel);
+    polishCode.push_back("goto " + startLabel);
+    polishCode.push_back(endLabel + ":");
 }
 
-void SemanticAnalyzer::generateRead(shared_ptr<ASTNode> node) {
+void PolishGenerator::generateRead(shared_ptr<ASTNode> node) {
     if (!node || node->children.empty()) return;
     string var = node->children[0]->value;
-    addQuad("read", "_", "_", var);
+    polishCode.push_back("read " + var);
 }
 
-void SemanticAnalyzer::generateWrite(shared_ptr<ASTNode> node) {
+void PolishGenerator::generateWrite(shared_ptr<ASTNode> node) {
     if (!node || node->children.empty()) return;
     string expr = generateExpression(node->children[0]);
-    addQuad("write", expr, "_", "_");
+    polishCode.push_back(expr);
+    polishCode.push_back("write");
 }
 
-void SemanticAnalyzer::generateStatement(shared_ptr<ASTNode> node) {
+void PolishGenerator::generateStatement(shared_ptr<ASTNode> node) {
     if (!node) return;
 
     switch (node->type) {
@@ -110,7 +106,7 @@ void SemanticAnalyzer::generateStatement(shared_ptr<ASTNode> node) {
     }
 }
 
-void SemanticAnalyzer::generateProgram(shared_ptr<ASTNode> node) {
+void PolishGenerator::generateProgram(shared_ptr<ASTNode> node) {
     if (!node) return;
     for (const auto& child : node->children) {
         if (child->type == NodeType::BLOCK) {
@@ -123,7 +119,7 @@ void SemanticAnalyzer::generateProgram(shared_ptr<ASTNode> node) {
     }
 }
 
-bool SemanticAnalyzer::analyze() {
+bool PolishGenerator::generate() {
     if (!ast) {
         hasError = true;
         return false;
@@ -132,33 +128,31 @@ bool SemanticAnalyzer::analyze() {
     return !hasError;
 }
 
-void SemanticAnalyzer::printQuadruples() const {
-    cout << "\n=== QUADRUPLES (INTERMEDIATE CODE) ===" << endl;
-    cout << left << setw(6) << "¹"
-        << setw(12) << "op"
-        << setw(12) << "arg1"
-        << setw(12) << "arg2"
-        << setw(12) << "result" << endl;
-    cout << string(54, '-') << endl;
-
-    for (size_t i = 0; i < quadruples.size(); ++i) {
-        cout << left << setw(6) << (i + 1)
-            << setw(12) << quadruples[i].op
-            << setw(12) << quadruples[i].arg1
-            << setw(12) << quadruples[i].arg2
-            << setw(12) << quadruples[i].result << endl;
+void PolishGenerator::printPolish() const {
+    cout << "\n=== POLISH NOTATION ===" << endl;
+    for (size_t i = 0; i < polishCode.size(); ++i) {
+        cout << (i + 1) << ": " << polishCode[i] << endl;
     }
 }
 
-void SemanticAnalyzer::saveQuadruples(const string& filename) const {
+void PolishGenerator::savePolish(const string& filename) const {
     ofstream file(filename);
     if (!file.is_open()) {
         cerr << "Error: Cannot open file " << filename << " for writing" << endl;
         return;
     }
-    for (size_t i = 0; i < quadruples.size(); ++i) {
-        file << (i + 1) << ": " << quadruples[i].toString() << endl;
+    file << "=== REVERSE POLISH NOTATION ===" << endl;
+    for (size_t i = 0; i < polishCode.size(); ++i) {
+        file << (i + 1) << ": " << polishCode[i] << endl;
     }
     file.close();
-    cout << "Quadruples saved to " << filename << endl;
+    cout << "Polish notation saved to " << filename << endl;
+}
+
+const vector<string>& PolishGenerator::getPolishCode() const {
+    return polishCode;
+}
+
+bool PolishGenerator::hasErrors() const {
+    return hasError;
 }

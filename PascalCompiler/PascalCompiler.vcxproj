@@ -128,31 +128,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\CodeGenerator.cpp" />
-    <ClCompile Include="..\DelimState.cpp" />
-    <ClCompile Include="..\ErrState.cpp" />
-    <ClCompile Include="..\IdState.cpp" />
-    <ClCompile Include="..\IntState.cpp" />
+    <ClCompile Include="..\PythonGenerator.cpp .cpp" />
+    <ClCompile Include="..\PolishGenerator.cpp" />
     <ClCompile Include="..\main.cpp" />
-    <ClCompile Include="..\MyParser.cpp" />
-    <ClCompile Include="..\OperatorState.cpp" />
-    <ClCompile Include="..\OperatorState2.cpp" />
-    <ClCompile Include="..\SemanticAnalyzer.cpp" />
-    <ClCompile Include="..\StartState.cpp" />
+    <ClCompile Include="..\PrecedenceParser.cpp" />
     <ClCompile Include="..\Tokenizer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\CodeGenerator.h" />
-    <ClInclude Include="..\DelimState.h" />
-    <ClInclude Include="..\ErrState.h" />
-    <ClInclude Include="..\IdState.h" />
-    <ClInclude Include="..\IntState.h" />
-    <ClInclude Include="..\OperatorState.h" />
-    <ClInclude Include="..\OperatorState2.h" />
-    <ClInclude Include="..\MyParser.h" />
-    <ClInclude Include="..\SemanticAnalyzer.h" />
-    <ClInclude Include="..\StartState.h" />
-    <ClInclude Include="..\State.h" />
+    <ClInclude Include="..\PythonGenerator.h" />
+    <ClInclude Include="..\PolishGenerator.h" />
+    <ClInclude Include="..\PrecedenceParser.h" />
     <ClInclude Include="..\Tokenizer.h" />
   </ItemGroup>
   <ItemGroup>

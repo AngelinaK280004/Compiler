@@ -1,121 +1,142 @@
 ﻿#include "Tokenizer.h"
-#include "MyParser.h"
-#include "SemanticAnalyzer.h"
-#include "CodeGenerator.h"
+#include "PrecedenceParser.h"
+#include "PolishGenerator.h"
+#include "PythonGenerator.h"
 #include <iostream>
-#include <memory>
+#include <iomanip>
+#include <chrono>
 using namespace std;
 
-void printUsage(const char* programName) {
-    cout << "Pascal Compiler - Console Application" << endl;
-    cout << "=====================================" << endl;
+void printHeader() {
+    cout << "    PASCAL COMPILER" << endl;
     cout << endl;
-    cout << "Usage:" << endl;
-    cout << "  " << programName << " <source_file> [output_asm] [output_tetrads]" << endl;
-    cout << endl;
-    cout << "Examples:" << endl;
-    cout << "  " << programName << " test.txt" << endl;
-    cout << "  " << programName << " test.txt output.asm tetrads.txt" << endl;
-    cout << endl;
-    cout << "The program performs:" << endl;
-    cout << "  1. Lexical analysis" << endl;
-    cout << "  2. Syntax analysis (recursive descent)" << endl;
-    cout << "  3. Semantic analysis & quadruple generation" << endl;
-    cout << "  4. Object code generation (MASM format)" << endl;
+}
+
+void printStageHeader(const string& stage, int num) {
+    cout << " STAGE " << num << ": " << left << setw(60) << stage << "" << endl;
 }
 
 int main(int argc, char* argv[]) {
-    cout << "========================================" << endl;
-    cout << "    PASCAL COMPILER (Console Application)" << endl;
-    cout << "========================================" << endl;
-    cout << endl;
+    printHeader();
 
     if (argc < 2) {
-        printUsage(argv[0]);
+        cout << "Usage: " << argv[0] << " <source_file> [output_python] [output_polish]" << endl;
         cout << endl;
-        cout << "Press Enter to exit..." << endl;
-        cin.get();
+        cout << "Examples:" << endl;
+        cout << "  " << argv[0] << " test_programs/test1_simple.txt" << endl;
+        cout << "  " << argv[0] << " test_programs/test2_assignment.txt output.py polish.txt" << endl;
         return 1;
     }
 
     string sourceFile = argv[1];
-    string asmFile = (argc >= 3) ? argv[2] : "output.asm";
-    string tetradsFile = (argc >= 4) ? argv[3] : "tetrads.txt";
+    string pythonFile = (argc >= 3) ? argv[2] : "output.py";
+    string polishFile = (argc >= 4) ? argv[3] : "polish.txt";
 
     cout << "Source file: " << sourceFile << endl;
-    cout << "Output ASM: " << asmFile << endl;
-    cout << "Output tetrads: " << tetradsFile << endl;
-    cout << endl;
+    cout << "Output Python: " << pythonFile << endl;
+    cout << "Output Polish: " << polishFile << endl;
 
-    // STAGE 1: LEXICAL ANALYSIS
-    cout << "=== STAGE 1: LEXICAL ANALYSIS ===" << endl;
+    auto startTime = chrono::high_resolution_clock::now();
+    bool hasError = false;
+
+    printStageHeader("LEXICAL ANALYSIS", 1);
+
     Tokenizer tokenizer;
     if (!tokenizer.openFile(sourceFile)) {
         cerr << "Failed to open source file" << endl;
-        cout << "Press Enter to exit..." << endl;
-        cin.get();
-        return 1;
-    }
-    cout << "Lexical analysis completed successfully" << endl;
-
-    // STAGE 2: SYNTAX ANALYSIS
-    cout << "\n=== STAGE 2: SYNTAX ANALYSIS (Recursive Descent) ===" << endl;
-    Parser parser(tokenizer);
-    auto ast = parser.parse();
-
-    if (parser.hasErrors()) {
-        cerr << "Syntax analysis failed" << endl;
-        cout << "Press Enter to exit..." << endl;
-        cin.get();
-        return 1;
-    }
-    cout << "Syntax analysis successful" << endl;
-
-    // STAGE 3: SEMANTIC ANALYSIS
-    cout << "\n=== STAGE 3: SEMANTIC ANALYSIS ===" << endl;
-
-    if (!parser.semanticAnalysis(ast)) {
-        cerr << "Semantic analysis failed" << endl;
-        cout << "Press Enter to exit..." << endl;
-        cin.get();
-        return 1;
-    }
-    parser.printSymbolTable();
-
-    SemanticAnalyzer semanticAnalyzer(ast);
-    if (!semanticAnalyzer.analyze()) {
-        cerr << "Failed to generate quadruples" << endl;
-        cout << "Press Enter to exit..." << endl;
-        cin.get();
         return 1;
     }
 
-    semanticAnalyzer.printQuadruples();
-    semanticAnalyzer.saveQuadruples(tetradsFile);
+    vector<Token> allTokens;
+    Token token;
+    do {
+        token = tokenizer.getNextToken();
+        allTokens.push_back(token);
+    } while (token.type != TokenType::END);
 
-    // STAGE 4: CODE GENERATION
-    cout << "\n=== STAGE 4: OBJECT CODE GENERATION ===" << endl;
-    CodeGenerator codeGenerator(semanticAnalyzer.getQuadruples());
+    tokenizer.printTables();
+    tokenizer.printTokens(allTokens);
+    cout << "\n[OK] Lexical analysis completed successfully" << endl;
+    tokenizer.closeFile();
 
-    if (codeGenerator.saveToFile(asmFile)) {
-        cout << "\n========================================" << endl;
-        cout << "    COMPILATION SUCCESSFUL!" << endl;
-        cout << "========================================" << endl;
-        cout << "Generated files:" << endl;
-        cout << "  - " << asmFile << " (assembly code)" << endl;
-        cout << "  - " << tetradsFile << " (intermediate code)" << endl;
-        cout << endl;
-        cout << "To create executable using Open Watcom:" << endl;
-        cout << "  wasm " << asmFile << endl;
-        cout << "  wlink file " << asmFile.substr(0, asmFile.find_last_of('.')) << ".obj" << endl;
+    printStageHeader("SYNTAX ANALYSIS", 2);
+
+    Tokenizer parserTokenizer;
+    if (!parserTokenizer.openFile(sourceFile)) {
+        cerr << "Failed to open source file" << endl;
+        return 1;
+    }
+
+    PrecedenceParser parser(parserTokenizer);
+    if (!parser.parse()) {
+        cerr << "[FAIL] Syntax analysis failed" << endl;
+        parser.printErrors();
+        hasError = true;
     }
     else {
-        cerr << "Failed to generate assembly code" << endl;
+        cout << "\n[OK] Syntax analysis completed successfully" << endl;
+        parser.printSymbolTable();
+        parser.printASTree();
+    }
+    parserTokenizer.closeFile();
+
+    printStageHeader("SEMANTIC ANALYSIS ", 3);
+
+    if (!hasError) {
+        PolishGenerator polishGen(parser.getAST());
+        if (polishGen.generate()) {
+            cout << "[OK] Polish notation generated successfully" << endl;
+            polishGen.printPolish();
+            polishGen.savePolish(polishFile);
+        }
+        else {
+            cerr << "[FAIL] Failed to generate Polish notation" << endl;
+            hasError = true;
+        }
+    }
+    else {
+        cerr << "[SKIP] Skipped due to previous errors" << endl;
     }
 
+    printStageHeader("PYTHON CODE GENERATION", 4);
+
+    if (!hasError) {
+        PolishGenerator polishGen(parser.getAST());
+        polishGen.generate();
+
+        PythonGenerator pythonGen(polishGen.getPolishCode());
+        if (pythonGen.saveToFile(pythonFile)) {
+            cout << "[OK] Python code generated successfully" << endl;
+            cout << "\nTo run the generated Python code:" << endl;
+            cout << "  python " << pythonFile << endl;
+        }
+        else {
+            cerr << "[FAIL] Failed to generate Python code" << endl;
+            hasError = true;
+        }
+    }
+    else {
+        cerr << "[SKIP] Skipped due to previous errors" << endl;
+    }
+
+    auto endTime = chrono::high_resolution_clock::now();
+    auto duration = chrono::duration_cast<chrono::milliseconds>(endTime - startTime);
+
+    if (hasError) {
+        cout << "    COMPILATION FAILED" << endl;
+    }
+    else {
+        cout << "    COMPILATION SUCCESSFUL" << endl;
+        cout << endl;
+        cout << "Generated files:" << endl;
+        cout << "  - " << pythonFile << " (Python code)" << endl;
+        cout << "  - " << polishFile << " (Polish notation)" << endl;
+    }
+    cout << "\nCompilation time: " << duration.count() << " ms" << endl;
     cout << endl;
+
     cout << "Press Enter to exit..." << endl;
     cin.get();
 
-    return 0;
+    return hasError ? 1 : 0;
 }

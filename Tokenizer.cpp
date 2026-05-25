@@ -6,19 +6,19 @@ using namespace std;
 Tokenizer::Tokenizer()
     : lineNumber(1), columnNumber(0), posInLine(-1), currentChar(' ') {
 
-    keywords = { "program", "var", "real", "begin", "while", "do", "end", "read", "write" };
+    keywords = { "program", "var", "integer", "begin", "while", "do", "end", "read", "write" };
     for (size_t i = 0; i < keywords.size(); ++i) {
-        keywordMap[keywords[i]] = i;
+        keywordMap[keywords[i]] = static_cast<int>(i);
     }
 
     operators = { ":=", "+", "-", "*", "/", "=", "<", ">", "<=", ">=", "<>" };
     for (size_t i = 0; i < operators.size(); ++i) {
-        operatorMap[operators[i]] = i;
+        operatorMap[operators[i]] = static_cast<int>(i);
     }
 
     delimiters = { "(", ")", ";", ",", ":", ".", " " };
     for (size_t i = 0; i < delimiters.size(); ++i) {
-        delimiterMap[delimiters[i]] = i;
+        delimiterMap[delimiters[i]] = static_cast<int>(i);
     }
 }
 
@@ -75,8 +75,7 @@ bool Tokenizer::isDigit(char c) const {
 }
 
 bool Tokenizer::isOperatorChar(char c) const {
-    // Убираем ':' из операторов, он будет обрабатываться как разделитель
-    return c == '+' || c == '-' || c == '*' || c == '/' || c == '=' || c == '<' || c == '>';
+    return c == '+' || c == '-' || c == '*' || c == '/' || c == ':' || c == '=' || c == '<' || c == '>';
 }
 
 bool Tokenizer::isDelimiter(char c) const {
@@ -95,19 +94,19 @@ Token Tokenizer::readIdentifier() {
 
     auto it = keywordMap.find(lexeme);
     if (it != keywordMap.end()) {
-        return Token(TokenType::KEYWORD, it->second, 0, lexeme, startLine, startColumn);
+        return Token(TokenType::KEYWORD, it->second, lexeme, startLine, startColumn);
     }
 
-    size_t idx = identifiers.size();
+    int idx = static_cast<int>(identifiers.size());
     auto idIt = find(identifiers.begin(), identifiers.end(), lexeme);
     if (idIt != identifiers.end()) {
-        idx = distance(identifiers.begin(), idIt);
+        idx = static_cast<int>(distance(identifiers.begin(), idIt));
     }
     else {
         identifiers.push_back(lexeme);
     }
 
-    return Token(TokenType::IDENTIFIER, static_cast<int>(idx), 0, lexeme, startLine, startColumn);
+    return Token(TokenType::IDENTIFIER, idx, lexeme, startLine, startColumn);
 }
 
 Token Tokenizer::readNumber() {
@@ -121,25 +120,15 @@ Token Tokenizer::readNumber() {
     }
 
     if (currentChar == '.') {
-        lexeme += currentChar;
-        getNextChar();
-
-        if (!isDigit(currentChar)) {
-            cerr << "Lexical error: Invalid number format at line " << startLine
-                << ", column " << startColumn << endl;
-            return Token(TokenType::UNKNOWN, -1, 0, lexeme, startLine, startColumn);
-        }
-
-        while (isDigit(currentChar)) {
-            lexeme += currentChar;
-            getNextChar();
-        }
+        cerr << "Lexical error at line " << startLine << ", column " << startColumn
+            << ": Floating point numbers are not supported (integer only)" << endl;
+        return Token(TokenType::UNKNOWN, -1, lexeme, startLine, startColumn);
     }
 
-    size_t idx = numbers.size();
+    int idx = static_cast<int>(numbers.size());
     numbers.push_back(lexeme);
 
-    return Token(TokenType::NUMBER, static_cast<int>(idx), 0, lexeme, startLine, startColumn);
+    return Token(TokenType::NUMBER, idx, lexeme, startLine, startColumn);
 }
 
 Token Tokenizer::readOperator() {
@@ -150,7 +139,6 @@ Token Tokenizer::readOperator() {
     lexeme += currentChar;
     getNextChar();
 
-    // Двухсимвольные операторы (:=, <=, >=, <>)
     if ((lexeme[0] == ':' && currentChar == '=') ||
         (lexeme[0] == '<' && currentChar == '=') ||
         (lexeme[0] == '<' && currentChar == '>') ||
@@ -159,27 +147,25 @@ Token Tokenizer::readOperator() {
         getNextChar();
         auto it = operatorMap.find(lexeme);
         if (it != operatorMap.end()) {
-            return Token(TokenType::OPERATOR, it->second, 0, lexeme, startLine, startColumn);
-        }
-    }
-    // Если это одиночный ':' — возвращаем как разделитель
-    else if (lexeme[0] == ':') {
-        auto it = delimiterMap.find(lexeme);
-        if (it != delimiterMap.end()) {
-            return Token(TokenType::DELIMITER, it->second, 0, lexeme, startLine, startColumn);
-        }
-    }
-    // Односимвольные операторы из списка (+, -, *, /, =, <, >)
-    else {
-        auto it = operatorMap.find(lexeme);
-        if (it != operatorMap.end()) {
-            return Token(TokenType::OPERATOR, it->second, 0, lexeme, startLine, startColumn);
+            return Token(TokenType::OPERATOR, it->second, lexeme, startLine, startColumn);
         }
     }
 
-    cerr << "Lexical error: Unknown operator at line " << startLine
-        << ", column " << startColumn << endl;
-    return Token(TokenType::UNKNOWN, -1, 0, lexeme, startLine, startColumn);
+    if (lexeme[0] == ':') {
+        auto it = delimiterMap.find(lexeme);
+        if (it != delimiterMap.end()) {
+            return Token(TokenType::DELIMITER, it->second, lexeme, startLine, startColumn);
+        }
+    }
+
+    auto it = operatorMap.find(lexeme);
+    if (it != operatorMap.end()) {
+        return Token(TokenType::OPERATOR, it->second, lexeme, startLine, startColumn);
+    }
+
+    cerr << "Lexical error at line " << startLine << ", column " << startColumn
+        << ": Unknown operator '" << lexeme << "'" << endl;
+    return Token(TokenType::UNKNOWN, -1, lexeme, startLine, startColumn);
 }
 
 Token Tokenizer::readDelimiter() {
@@ -191,17 +177,17 @@ Token Tokenizer::readDelimiter() {
 
     auto it = delimiterMap.find(lexeme);
     if (it != delimiterMap.end()) {
-        return Token(TokenType::DELIMITER, it->second, 0, lexeme, startLine, startColumn);
+        return Token(TokenType::DELIMITER, it->second, lexeme, startLine, startColumn);
     }
 
-    return Token(TokenType::UNKNOWN, -1, 0, lexeme, startLine, startColumn);
+    return Token(TokenType::UNKNOWN, -1, lexeme, startLine, startColumn);
 }
 
 Token Tokenizer::getNextToken() {
     skipWhitespace();
 
     if (currentChar == EOF) {
-        return Token(TokenType::END, -1, 0, "EOF", lineNumber, columnNumber);
+        return Token(TokenType::END, -1, "EOF", lineNumber, columnNumber);
     }
 
     if (isLetter(currentChar)) {
@@ -223,35 +209,30 @@ Token Tokenizer::getNextToken() {
     string lexeme(1, currentChar);
     int startLine = lineNumber;
     int startColumn = columnNumber;
-    cerr << "Lexical error: Unknown character '" << currentChar
-        << "' at line " << startLine << ", column " << startColumn << endl;
+    cerr << "Lexical error at line " << startLine << ", column " << startColumn
+        << ": Unknown character '" << currentChar << "'" << endl;
     getNextChar();
-    return Token(TokenType::UNKNOWN, -1, 0, lexeme, startLine, startColumn);
+    return Token(TokenType::UNKNOWN, -1, lexeme, startLine, startColumn);
 }
 
 void Tokenizer::printTables() const {
     cout << "\n=== TABLES OF LEXEMES ===" << endl;
-
     cout << "\nTable 1 - Keywords:" << endl;
     for (size_t i = 0; i < keywords.size(); ++i) {
         cout << "  [" << i << "] = \"" << keywords[i] << "\"" << endl;
     }
-
     cout << "\nTable 2 - Identifiers:" << endl;
     for (size_t i = 0; i < identifiers.size(); ++i) {
         cout << "  [" << i << "] = \"" << identifiers[i] << "\"" << endl;
     }
-
     cout << "\nTable 3 - Numbers:" << endl;
     for (size_t i = 0; i < numbers.size(); ++i) {
         cout << "  [" << i << "] = \"" << numbers[i] << "\"" << endl;
     }
-
     cout << "\nTable 4 - Operators:" << endl;
     for (size_t i = 0; i < operators.size(); ++i) {
         cout << "  [" << i << "] = \"" << operators[i] << "\"" << endl;
     }
-
     cout << "\nTable 5 - Delimiters:" << endl;
     for (size_t i = 0; i < delimiters.size(); ++i) {
         cout << "  [" << i << "] = \"" << delimiters[i] << "\"" << endl;
@@ -260,43 +241,17 @@ void Tokenizer::printTables() const {
 
 void Tokenizer::printTokens(const vector<Token>& tokens) const {
     cout << "\n=== TOKEN SEQUENCE ===" << endl;
-
     for (const auto& token : tokens) {
         if (token.type == TokenType::END) break;
-
         string typeStr;
-        string value;
-
         switch (token.type) {
-        case TokenType::KEYWORD:
-            typeStr = "KEYWORD";
-            if (token.tableIndex >= 0 && token.tableIndex < (int)keywords.size())
-                value = keywords[token.tableIndex];
-            break;
-        case TokenType::IDENTIFIER:
-            typeStr = "IDENTIFIER";
-            if (token.tableIndex >= 0 && token.tableIndex < (int)identifiers.size())
-                value = identifiers[token.tableIndex];
-            break;
-        case TokenType::NUMBER:
-            typeStr = "NUMBER";
-            if (token.tableIndex >= 0 && token.tableIndex < (int)numbers.size())
-                value = numbers[token.tableIndex];
-            break;
-        case TokenType::OPERATOR:
-            typeStr = "OPERATOR";
-            if (token.tableIndex >= 0 && token.tableIndex < (int)operators.size())
-                value = operators[token.tableIndex];
-            break;
-        case TokenType::DELIMITER:
-            typeStr = "DELIMITER";
-            if (token.tableIndex >= 0 && token.tableIndex < (int)delimiters.size())
-                value = delimiters[token.tableIndex];
-            break;
-        default:
-            continue;
+        case TokenType::KEYWORD:   typeStr = "KEYWORD";    break;
+        case TokenType::IDENTIFIER:typeStr = "IDENTIFIER"; break;
+        case TokenType::NUMBER:    typeStr = "NUMBER";     break;
+        case TokenType::OPERATOR:  typeStr = "OPERATOR";   break;
+        case TokenType::DELIMITER: typeStr = "DELIMITER";  break;
+        default: continue;
         }
-
-        cout << typeStr << ": \"" << value << "\" [line:" << token.line << ", col:" << token.column << "]" << endl;
+        cout << typeStr << ": \"" << token.lexeme << "\" [line:" << token.line << ", col:" << token.column << "]" << endl;
     }
 }
